@@ -38,6 +38,7 @@ def TimeFormatter(milliseconds: int) -> str:
 # Check the USAGE of the BOT
 
 def is_user_in_channel(app, message):
+    return True  # Bypass channel subscription check
     # Bypass subscription checks for explicitly allowed groups
     try:
         if int(getattr(message.chat, 'id', 0)) in getattr(Config, 'ALLOWED_GROUP', []):
