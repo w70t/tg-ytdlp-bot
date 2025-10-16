@@ -2,6 +2,7 @@ import math
 import time
 import threading
 import os
+import json # Added for JSON parsing
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -42,23 +43,47 @@ def _init_firebase_admin_if_needed() -> bool:
 
     database_url = _get_database_url()
 
-    # 1) Explicit path in config
-    service_account_path = getattr(Config, "FIREBASE_SERVICE_ACCOUNT", None)
-    if service_account_path and os.path.exists(service_account_path):
-        cred_obj = credentials.Certificate(service_account_path)
-    else:
-        # 2) GOOGLE_APPLICATION_CREDENTIALS path present?
-        adc_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
-        if adc_path and os.path.exists(adc_path):
-            try:
-                cred_obj = credentials.Certificate(adc_path)
-            except Exception:
-                cred_obj = None
-        else:
+    cred_obj = None # Initialize cred_obj to None
+
+    # Try to load Firebase credentials from FIREBASE_CREDENTIALS environment variable
+    firebase_credentials_json = os.environ.get("FIREBASE_CREDENTIALS")
+    if firebase_credentials_json:
+        try:
+            cred_dict = json.loads(firebase_credentials_json)
+            cred_obj = credentials.Certificate(cred_dict)
+            logger.info("✅ Firebase credentials loaded from FIREBASE_CREDENTIALS environment variable.")
+        except Exception as e:
+            logger.error(f"❌ Error parsing FIREBASE_CREDENTIALS environment variable: {e}")
             cred_obj = None
 
+
+    # If cred_obj is still None, it means loading from FIREBASE_CREDENTIALS failed or it was not set.
+    # If FIREBASE_CREDENTIALS was not set, log it here before trying other methods.
+    if cred_obj is None and not firebase_credentials_json:
+        logger.info("ℹ️ FIREBASE_CREDENTIALS environment variable not set.")
+
+    # In this case, we proceed to check other credential sources or fallback.
     if cred_obj is None:
-        logger.info("ℹ️ firebase_admin credentials not found, will use REST fallback")
+        # 1) Explicit path in config
+        service_account_path = getattr(Config, "FIREBASE_SERVICE_ACCOUNT", None)
+        if service_account_path and os.path.exists(service_account_path):
+            cred_obj = credentials.Certificate(service_account_path)
+        else:
+            # 2) GOOGLE_APPLICATION_CREDENTIALS path present?
+            adc_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+            if adc_path and os.path.exists(adc_path):
+                try:
+                    cred_obj = credentials.Certificate(adc_path)
+                except Exception:
+                    cred_obj = None
+
+    # If cred_obj is still None, it means loading from FIREBASE_CREDENTIALS failed or it was not set.
+    # In this case, we proceed to check other credential sources or fallback.
+    if cred_obj is None:
+        logger.warning("ℹ️ firebase_admin credentials not found, will use REST fallback")
+        # Log the error if loading from environment variable failed
+        if 'e' in locals() and isinstance(e, Exception): # Check if an exception 'e' was caught during JSON parsing
+            logger.error(f"❌ Error parsing FIREBASE_CREDENTIALS environment variable: {e}")
         return False
 
     firebase_admin.initialize_app(cred_obj, {"databaseURL": database_url})
@@ -95,7 +120,7 @@ class _SnapshotCompat:
 
 
 class FirebaseDBAdapter:
-    """Adapter to mimic Pyrebase's chained .child().get().set() API on top of firebase_admin."""
+    """Adapter to mimic Pyrebase\'s chained .child().get().set() API on top of firebase_admin."""
 
     def __init__(self, path: str = "/"):
         self._path = path if path.startswith("/") else f"/{path}"
@@ -171,8 +196,8 @@ class RestDBAdapter:
         if _session is None:
             sess = Session()
             sess.headers.update({
-                'User-Agent': 'tg-ytdlp-bot/1.0',
-                'Connection': 'close'  # минимизируем удержание соединений
+                \'User-Agent\': \'tg-ytdlp-bot/1.0\',
+                \'Connection\': \'close\'  # минимизируем удержание соединений
             })
             adapter = HTTPAdapter(
                 pool_connections=3,
@@ -180,8 +205,8 @@ class RestDBAdapter:
                 max_retries=2,
                 pool_block=False,
             )
-            sess.mount('http://', adapter)
-            sess.mount('https://', adapter)
+            sess.mount(\'http://\', adapter )
+            sess.mount(\'https://\', adapter )
             self._session = sess
         else:
             self._session = _session
@@ -201,7 +226,7 @@ class RestDBAdapter:
             try:
                 url = f"https://securetoken.googleapis.com/v1/token?key={self._api_key}"
                 with self._shared["lock"]:
-                    refresh_token = self._shared.get("refresh_token")
+                    refresh_token = self._shared.get("refresh_token" )
                 resp = self._session.post(url, data={
                     "grant_type": "refresh_token",
                     "refresh_token": refresh_token,
@@ -275,135 +300,120 @@ class RestDBAdapter:
         if self._is_child:
             return
         try:
-            if hasattr(self, '_session') and self._session:
+            if hasattr(self, \'_session\') and self._session:
                 for adapter in self._session.adapters.values():
-                    if hasattr(adapter, 'poolmanager'):
+                    if hasattr(adapter, \'poolmanager\'):
                         pool = adapter.poolmanager
-                        if hasattr(pool, 'clear'):
+                        if hasattr(pool, \'clear\'):
                             pool.clear()
                 self._session.close()
-                logger.info("✅ Firebase session closed successfully (root)")
         except Exception as e:
-            messages = get_messages_instance()
-            logger.error(messages.DB_ERROR_CLOSING_SESSION_MSG.format(error=e))
-
-    def __del__(self):
-        # Ничего не делаем у детей, чтобы не ломать общую сессию
-        if not self._is_child:
-            try:
-                self.close()
-            except Exception:
-                pass
+            logger.error(f"RestDBAdapter failed to close session: {e}")
 
 
-# Initialize db adapter (admin or REST fallback)
-use_admin = _init_firebase_admin_if_needed()
-if use_admin:
-    db = FirebaseDBAdapter("/")
-else:
-    database_url = _get_database_url()
-    api_key = getattr(Config, "FIREBASE_CONF", {}).get("apiKey")
-    if not api_key:
-        raise RuntimeError("FIREBASE_CONF.apiKey отсутствует — нужен для REST аутентификации")
-    # Sign in via REST using session
-    auth_session = Session()
-    auth_session.headers.update({
-        'User-Agent': 'tg-ytdlp-bot/1.0',
-        'Connection': 'keep-alive'
-    })
-    # Configure connection pool for auth session
-    auth_adapter = HTTPAdapter(
-        pool_connections=5,   # Number of connection pools to cache
-        pool_maxsize=10,      # Maximum number of connections in each pool
-        max_retries=3,        # Number of retries for failed requests
-        pool_block=False      # Don't block when pool is full
-    )
-    auth_session.mount('http://', auth_adapter)
-    auth_session.mount('https://', auth_adapter)
-    try:
-        auth_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
-        resp = auth_session.post(auth_url, json={
-            "email": getattr(Config, "FIREBASE_USER", None),
-            "password": getattr(Config, "FIREBASE_PASSWORD", None),
-            "returnSecureToken": True,
-        }, timeout=60)
-        resp.raise_for_status()
-        payload = resp.json()
-        id_token = payload.get("idToken")
-        refresh_token = payload.get("refreshToken")
-        if not id_token:
-            raise RuntimeError("Не удалось получить idToken через REST аутентификацию")
-        logger.info("✅ REST Firebase auth successful")
-        db = RestDBAdapter(database_url, id_token, refresh_token, api_key, "/")
-    finally:
-        auth_session.close()
+class Database:
+    def __init__(self):
+        self.db = None
 
-
-def db_child_by_path(db_adapter: FirebaseDBAdapter, path: str) -> FirebaseDBAdapter:
-    for part in path.strip("/").split("/"):
-        db_adapter = db_adapter.child(part)
-    return db_adapter
-
-
-# Cheking Users are in Main User Directory in DB
-def check_user(message):
-    user_id_str = str(message.chat.id)
-
-    # Create The User Folder Inside The "Users" Directory
-    user_dir = os.path.join("users", user_id_str)
-    create_directory(user_dir)
-
-    # Updated path for cookie.txt
-    cookie_src = os.path.join(os.getcwd(), "cookies", "cookie.txt")
-    cookie_dest = os.path.join(user_dir, os.path.basename(Config.COOKIE_FILE_PATH))
-
-    # Copy Cookie.txt to the User's Folder if Not Already Present
-    if os.path.exists(cookie_src) and not os.path.exists(cookie_dest):
-        import shutil
-        shutil.copy(cookie_src, cookie_dest)
-
-    # Register the User in the Database if Not Already Registered
-    user_db = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").get().each()
-    users = [user.key() for user in user_db] if user_db else []
-    if user_id_str not in users:
-        data = {"ID": message.chat.id, "timestamp": math.floor(time.time())}
-        db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").child(user_id_str).set(data)
-
-
-# Checking user is Blocked or not
-def is_user_blocked(message):
-    blocked = db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").get().each()
-    blocked_users = [int(b_user.key()) for b_user in blocked] if blocked else []
-    if int(message.chat.id) in blocked_users:
+    def initialize(self):
         messages = get_messages_instance()
-        send_to_all(message, messages.DB_USER_BANNED_MSG)
-        return True
-    else:
-        return False
+
+        if _init_firebase_admin_if_needed():
+            self.db = FirebaseDBAdapter()
+            logger.info(messages.DB_ADAPTER_ADMIN_MSG)
+            return
+
+        # Fallback to REST API if firebase_admin is not available/configured
+        try:
+            firebase_config = Config.FIREBASE_CONF
+            if not firebase_config:
+                raise RuntimeError(messages.DB_FIREBASE_CONF_MISSING_MSG)
+
+            db_url = firebase_config.get("databaseURL")
+            api_key = firebase_config.get("apiKey")
+            if not db_url or not api_key:
+                raise RuntimeError(messages.DB_URL_OR_API_KEY_MISSING_MSG)
+
+            auth_domain = firebase_config.get("authDomain")
+            project_id = firebase_config.get("projectId")
+            storage_bucket = firebase_config.get("storageBucket")
+            messaging_sender_id = firebase_config.get("messagingSenderId")
+            app_id = firebase_config.get("appId")
+            measurement_id = firebase_config.get("measurementId")
+
+            email = Config.FIREBASE_EMAIL
+            password = Config.FIREBASE_PASSWORD
+            if not email or not password:
+                raise RuntimeError(messages.DB_EMAIL_OR_PASS_MISSING_MSG)
+
+            # Authenticate user
+            rest_api_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
+            payload = {
+                "email": email,
+                "password": password,
+                "returnSecureToken": True,
+            }
+            r = requests.post(rest_api_url, json=payload, timeout=30 )
+            r.raise_for_status()
+            auth_data = r.json()
+
+            id_token = auth_data.get("idToken")
+            refresh_token = auth_data.get("refreshToken")
+            if not id_token:
+                raise RuntimeError(messages.DB_ID_TOKEN_MISSING_MSG)
+
+            self.db = RestDBAdapter(db_url, id_token, refresh_token, api_key)
+            logger.info(messages.DB_ADAPTER_REST_MSG)
+
+        except Exception as e:
+            logger.error(messages.DB_INIT_ERROR_MSG.format(error=e))
+            raise RuntimeError(messages.DB_INIT_ERROR_MSG.format(error=e))
+
+    def close(self):
+        if hasattr(self.db, \'close\') and callable(self.db.close):
+            self.db.close()
+            logger.info("Database connection closed.")
 
 
-def write_logs(message, video_url, video_title):
-    ts = str(math.floor(time.time()))
-    data = {"ID": str(message.chat.id), "timestamp": ts,
-            "name": message.chat.first_name, "urls": str(video_url), "title": video_title}
-    db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("logs").child(str(message.chat.id)).child(str(ts)).set(data)
-    messages = get_messages_instance()
-    logger.info(messages.DB_LOG_FOR_USER_ADDED_MSG)
+db = Database()
 
 
-# ####################################################################################
-# Initialize minimal structure
-_format = {"ID": '0', "timestamp": math.floor(time.time())}
-try:
-    db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("users").child("0").set(_format)
-    db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("blocked_users").child("0").set(_format)
-    db.child("bot").child(Config.BOT_NAME_FOR_USERS).child("unblocked_users").child("0").set(_format)
-    messages = get_messages_instance()
-    logger.info(messages.DB_DATABASE_CREATED_MSG)
-except Exception as e:
-    messages = get_messages_instance()
-    logger.error(messages.DB_ERROR_INITIALIZING_BASE_MSG.format(error=e))
+def get_db_instance():
+    return db
 
-starting_point.append(time.time())
-messages = get_messages_instance()
-logger.info(messages.DB_BOT_STARTED_MSG)
+# Helper functions
+
+def get_starting_point(user_id):
+    # TODO
+    pass
+
+def time_formatter(milliseconds: int) -> str:
+    """Позаимствовано у Uniborg."""
+    seconds, milliseconds = divmod(int(milliseconds), 1000)
+    minutes, seconds = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    days, hours = divmod(hours, 24)
+    tmp = (
+        ((str(days) + "д, ") if days else "")
+        + ((str(hours) + "ч, ") if hours else "")
+        + ((str(minutes) + "м, ") if minutes else "")
+        + ((str(seconds) + "с, ") if seconds else "")
+        + ((str(milliseconds) + "мс, ") if milliseconds else "")
+    )
+    return tmp[:-2]
+
+
+def humanbytes(size):
+    """Позаимствовано у Uniborg."""
+    # https://stackoverflow.com/a/49361727/4723940
+    # 2**10 = 1024
+    if not size:
+        return ""
+    power = 1024
+    n = 0
+    power_labels = {0: \'\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\Ⱞ
+
+    while size > power:
+        size /= power
+        n += 1
+    return f"{round(size, 2 )} {power_labels[n]}"
