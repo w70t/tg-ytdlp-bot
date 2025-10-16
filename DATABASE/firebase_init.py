@@ -120,7 +120,7 @@ class _SnapshotCompat:
 
 
 class FirebaseDBAdapter:
-    """Adapter to mimic Pyrebase\'s chained .child().get().set() API on top of firebase_admin."""
+    """Adapter to mimic Pyrebase's chained .child().get().set() API on top of firebase_admin."""
 
     def __init__(self, path: str = "/"):
         self._path = path if path.startswith("/") else f"/{path}"
@@ -300,120 +300,49 @@ class RestDBAdapter:
         if self._is_child:
             return
         try:
-            if hasattr(self, \'_session\') and self._session:
+            if hasattr(self, '_session') and self._session:
                 for adapter in self._session.adapters.values():
-                    if hasattr(adapter, \'poolmanager\'):
+                    if hasattr(adapter, 'poolmanager'):
                         pool = adapter.poolmanager
-                        if hasattr(pool, \'clear\'):
+                        if hasattr(pool, 'clear'):
                             pool.clear()
                 self._session.close()
         except Exception as e:
             logger.error(f"RestDBAdapter failed to close session: {e}")
 
 
-class Database:
-    def __init__(self):
+
+class DB:
+    def __init__(self, user_or_chat_id: int):
+        self.user_or_chat_id = user_or_chat_id
         self.db = None
+        self.use_rest_api = False
 
-    def initialize(self):
-        messages = get_messages_instance()
-
-        if _init_firebase_admin_if_needed():
+        if not _init_firebase_admin_if_needed():
+            self.use_rest_api = True
+            logger.warning("Firebase Admin SDK not initialized, falling back to REST API")
+            # Проверяем, есть ли токен и ключ API для REST
+            if not all([Config.FIREBASE_ID_TOKEN, Config.FIREBASE_API_KEY]):
+                messages = get_messages_instance()
+                raise RuntimeError(messages.DB_REST_API_CREDENTIALS_MISSING_MSG)
+            self.db = RestDBAdapter(
+                _get_database_url(),
+                Config.FIREBASE_ID_TOKEN,
+                Config.FIREBASE_REFRESH_TOKEN,
+                Config.FIREBASE_API_KEY,
+            )
+        else:
             self.db = FirebaseDBAdapter()
-            logger.info(messages.DB_ADAPTER_ADMIN_MSG)
-            return
 
-        # Fallback to REST API if firebase_admin is not available/configured
-        try:
-            firebase_config = Config.FIREBASE_CONF
-            if not firebase_config:
-                raise RuntimeError(messages.DB_FIREBASE_CONF_MISSING_MSG)
+    def child(self, *path: str):
+        return self.db.child(*path)
 
-            db_url = firebase_config.get("databaseURL")
-            api_key = firebase_config.get("apiKey")
-            if not db_url or not api_key:
-                raise RuntimeError(messages.DB_URL_OR_API_KEY_MISSING_MSG)
+    def get_user_or_chat_data(self):
+        return self.db.child(self.user_or_chat_id).get()
 
-            auth_domain = firebase_config.get("authDomain")
-            project_id = firebase_config.get("projectId")
-            storage_bucket = firebase_config.get("storageBucket")
-            messaging_sender_id = firebase_config.get("messagingSenderId")
-            app_id = firebase_config.get("appId")
-            measurement_id = firebase_config.get("measurementId")
-
-            email = Config.FIREBASE_EMAIL
-            password = Config.FIREBASE_PASSWORD
-            if not email or not password:
-                raise RuntimeError(messages.DB_EMAIL_OR_PASS_MISSING_MSG)
-
-            # Authenticate user
-            rest_api_url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={api_key}"
-            payload = {
-                "email": email,
-                "password": password,
-                "returnSecureToken": True,
-            }
-            r = requests.post(rest_api_url, json=payload, timeout=30 )
-            r.raise_for_status()
-            auth_data = r.json()
-
-            id_token = auth_data.get("idToken")
-            refresh_token = auth_data.get("refreshToken")
-            if not id_token:
-                raise RuntimeError(messages.DB_ID_TOKEN_MISSING_MSG)
-
-            self.db = RestDBAdapter(db_url, id_token, refresh_token, api_key)
-            logger.info(messages.DB_ADAPTER_REST_MSG)
-
-        except Exception as e:
-            logger.error(messages.DB_INIT_ERROR_MSG.format(error=e))
-            raise RuntimeError(messages.DB_INIT_ERROR_MSG.format(error=e))
+    def set_user_or_chat_data(self, data):
+        return self.db.child(self.user_or_chat_id).set(data)
 
     def close(self):
-        if hasattr(self.db, \'close\') and callable(self.db.close):
+        if hasattr(self.db, 'close'):
             self.db.close()
-            logger.info("Database connection closed.")
-
-
-db = Database()
-
-
-def get_db_instance():
-    return db
-
-# Helper functions
-
-def get_starting_point(user_id):
-    # TODO
-    pass
-
-def time_formatter(milliseconds: int) -> str:
-    """Позаимствовано у Uniborg."""
-    seconds, milliseconds = divmod(int(milliseconds), 1000)
-    minutes, seconds = divmod(seconds, 60)
-    hours, minutes = divmod(minutes, 60)
-    days, hours = divmod(hours, 24)
-    tmp = (
-        ((str(days) + "д, ") if days else "")
-        + ((str(hours) + "ч, ") if hours else "")
-        + ((str(minutes) + "м, ") if minutes else "")
-        + ((str(seconds) + "с, ") if seconds else "")
-        + ((str(milliseconds) + "мс, ") if milliseconds else "")
-    )
-    return tmp[:-2]
-
-
-def humanbytes(size):
-    """Позаимствовано у Uniborg."""
-    # https://stackoverflow.com/a/49361727/4723940
-    # 2**10 = 1024
-    if not size:
-        return ""
-    power = 1024
-    n = 0
-    power_labels = {0: \'\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\​\Ⱞ
-
-    while size > power:
-        size /= power
-        n += 1
-    return f"{round(size, 2 )} {power_labels[n]}"
