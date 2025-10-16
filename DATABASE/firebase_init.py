@@ -196,8 +196,8 @@ class RestDBAdapter:
         if _session is None:
             sess = Session()
             sess.headers.update({
-                \'User-Agent\': \'tg-ytdlp-bot/1.0\',
-                \'Connection\': \'close\'  # минимизируем удержание соединений
+                'User-Agent': 'tg-ytdlp-bot/1.0',
+                'Connection': 'close'  # минимизируем удержание соединений
             })
             adapter = HTTPAdapter(
                 pool_connections=3,
@@ -205,8 +205,8 @@ class RestDBAdapter:
                 max_retries=2,
                 pool_block=False,
             )
-            sess.mount(\'http://\', adapter )
-            sess.mount(\'https://\', adapter )
+            sess.mount('http://', adapter )
+            sess.mount('https://', adapter )
             self._session = sess
         else:
             self._session = _session
