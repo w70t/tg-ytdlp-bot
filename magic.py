@@ -218,7 +218,7 @@ def _vid_handler(app, message):
         parts = txt.split()
         url = ""
         # Support syntax: /vid 1-10 https://...  -> append *1*10 to URL
-        if len(parts) >= 3 and re.match(r"^\d+-\d*$", parts[1]):
+        if len(parts ) >= 3 and re.match(r"^\d+-\d*$", parts[1]):
             rng = parts[1]
             url = " ".join(parts[2:])
             a, b = rng.split("-", 1)
@@ -265,12 +265,10 @@ def _vid_handler(app, message):
             get_messages_instance().MAGIC_VID_HELP_ALSO_SEE_MSG
         )
         safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
-
 # Register /vid in private and allowed groups
 app.on_message(filters.command("vid") & filters.private)(_vid_handler)
 if _allowed_groups:
     app.on_message(filters.group & filters.command("vid"))(_wrap_group(lambda a, m: _vid_handler(a, m) if _is_allowed_group(m) else None))
-
 # Help close handler for /vid
 @app.on_callback_query(filters.regex(r"^vid_help\|"))
 def vid_help_callback(app, callback_query):
@@ -288,19 +286,15 @@ def vid_help_callback(app, callback_query):
         except Exception:
             pass
         return
-
 ###########################################################
 #        APP STARTS
 ###########################################################
 # ###############################################################################################
 # Global starting point list (do not modify)
 starting_point = []
-
 # ###############################################################################################
-
 # Run the automatic loading of the Firebase cache
 start_auto_cache_reloader()
-
 def cleanup_on_exit():
     """Cleanup function to close Firebase connections and logger on exit"""
     try:
@@ -317,18 +311,33 @@ def cleanup_on_exit():
         print(get_messages_instance().MAGIC_CLEANUP_COMPLETED_MSG)
     except Exception as e:
         print(get_messages_instance().MAGIC_ERROR_DURING_CLEANUP_MSG.format(error=e))
-
 # Register cleanup function
 atexit.register(cleanup_on_exit)
-
 # Register signal handlers for graceful shutdown
 def signal_handler(sig, frame):
     """Handle shutdown signals gracefully"""
     print(get_messages_instance().MAGIC_SIGNAL_RECEIVED_MSG.format(signal=sig))
     cleanup_on_exit()
     sys.exit(0)
-
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
+
+import flask
+from threading import Thread
+
+# Create a simple Flask app for Koyeb health checks
+flask_app = flask.Flask(__name__)
+
+@flask_app.route('/')
+def hello():
+    return 'Bot is running!'
+
+def run_flask_app():
+    port = int(os.environ.get("PORT", 8000))
+    flask_app.run(host='0.0.0.0', port=port)
+
+# Start the Flask app in a separate thread
+flask_thread = Thread(target=run_flask_app)
+flask_thread.start()
 
 app.run()
