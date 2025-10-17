@@ -322,32 +322,35 @@ try:
         db = FirebaseDBAdapter()
         logger.info("✅ Global 'db' instance initialized with Firebase Admin SDK")
     else:
-        if not all([
-            hasattr(Config, 'FIREBASE_ID_TOKEN') and Config.FIREBASE_ID_TOKEN,
-            hasattr(Config, 'FIREBASE_API_KEY') and Config.FIREBASE_API_KEY
-        ]):
-            logger.warning("⚠️ Firebase REST credentials missing, 'db' will be None")
-            db = None
-        else:
-            db = RestDBAdapter(
-                _get_database_url(),
-                Config.FIREBASE_ID_TOKEN,
-                getattr(Config, 'FIREBASE_REFRESH_TOKEN', None),
-                Config.FIREBASE_API_KEY,
-            )
-            logger.info("✅ Global 'db' instance initialized with REST API fallback")
+        # REST fallback...
+        db = RestDBAdapter(
+            _get_database_url(),
+            Config.FIREBASE_ID_TOKEN,
+            getattr(Config, 'FIREBASE_REFRESH_TOKEN', None),
+            Config.FIREBASE_API_KEY,
+        )
+        logger.info("✅ Global 'db' instance initialized with REST API fallback")
 except Exception as e:
     logger.error(f"❌ Failed to initialize global 'db' instance: {e}")
     db = None
 
-
 def db_child_by_path(path: str):
-    """Helper for backward compatibility: Returns a child adapter at the given path."""
     try:
-        if db is None:
-            logger.error("❌ db_child_by_path called but global 'db' is None")
-            return None
-        return db.child(path)
+        return db.child(path) if db else None
     except Exception as e:
-        logger.error(f"❌ db_child_by_path failed for path {path}: {e}")
+        logger.error(f"db_child_by_path failed: {e}")
         return None
+
+def is_user_blocked(user_id: Any) -> bool:
+    try:
+        snap = db_child_by_path("blocked_users").get()
+        return str(user_id) in (snap.val() or {})
+    except Exception as e:
+        logger.error(f"is_user_blocked failed: {e}")
+        return False
+
+def write_logs(message: str):
+    try:
+        send_to_all(message)
+    except Exception as e:
+        logger.error(f"write_logs failed: {e}")
