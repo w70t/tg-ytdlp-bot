@@ -331,6 +331,33 @@ class DB:
                 Config.FIREBASE_REFRESH_TOKEN,
                 Config.FIREBASE_API_KEY,
             )
+            # في نهاية الملف، بعد تعريف class DB
+
+# Initialize global db instance for backward compatibility
+try:
+    if _init_firebase_admin_if_needed():
+        db = FirebaseDBAdapter()
+        logger.info("✅ Global 'db' instance initialized with Firebase Admin SDK")
+    else:
+        # Fallback to REST API
+        if not all([
+            hasattr(Config, 'FIREBASE_ID_TOKEN') and Config.FIREBASE_ID_TOKEN,
+            hasattr(Config, 'FIREBASE_API_KEY') and Config.FIREBASE_API_KEY
+        ]):
+            logger.warning("⚠️ Firebase REST credentials missing, 'db' will be None")
+            db = None
+        else:
+            db = RestDBAdapter(
+                _get_database_url(),
+                Config.FIREBASE_ID_TOKEN,
+                getattr(Config, 'FIREBASE_REFRESH_TOKEN', None),
+                Config.FIREBASE_API_KEY,
+            )
+            logger.info("✅ Global 'db' instance initialized with REST API fallback")
+except Exception as e:
+    logger.error(f"❌ Failed to initialize global 'db' instance: {e}")
+    db = None
+
         else:
             self.db = FirebaseDBAdapter()
 
