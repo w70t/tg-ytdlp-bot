@@ -341,26 +341,13 @@ except Exception as e:
     db = None
 
 
-def is_user_blocked(user_id: Any) -> bool:
-    """
-    Check if a user/chat is blocked.
-    Returns True if blocked, False otherwise.
-    """
+def db_child_by_path(path: str):
+    """Helper for backward compatibility: Returns a child adapter at the given path."""
     try:
-        blocked_list = db_child_by_path("blocked_users").get()
-        if blocked_list and blocked_list.val():
-            return str(user_id) in blocked_list.val()
-        return False
+        if db is None:
+            logger.error("❌ db_child_by_path called but global 'db' is None")
+            return None
+        return db.child(path)
     except Exception as e:
-        logger.error(f"❌ is_user_blocked failed: {e}")
-        return False
-
-
-def write_logs(message: str):
-    """
-    Helper for backward compatibility: send log message to configured log channel.
-    """
-    try:
-        send_to_all(message)
-    except Exception as e:
-        logger.error(f"❌ write_logs failed: {e}")
+        logger.error(f"❌ db_child_by_path failed for path {path}: {e}")
+        return None
