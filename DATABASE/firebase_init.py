@@ -2,7 +2,7 @@ import math
 import time
 import threading
 import os
-import json
+import json  # Added for JSON parsing
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -40,7 +40,6 @@ def _init_firebase_admin_if_needed() -> bool:
     database_url = _get_database_url()
     cred_obj = None
 
-    # Try to load Firebase credentials from FIREBASE_CREDENTIALS environment variable
     firebase_credentials_json = os.environ.get("FIREBASE_CREDENTIALS")
     if firebase_credentials_json:
         try:
@@ -55,12 +54,10 @@ def _init_firebase_admin_if_needed() -> bool:
         logger.info("ℹ️ FIREBASE_CREDENTIALS environment variable not set.")
 
     if cred_obj is None:
-        # 1) Explicit path in config
         service_account_path = getattr(Config, "FIREBASE_SERVICE_ACCOUNT", None)
         if service_account_path and os.path.exists(service_account_path):
             cred_obj = credentials.Certificate(service_account_path)
         else:
-            # 2) GOOGLE_APPLICATION_CREDENTIALS path present?
             adc_path = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
             if adc_path and os.path.exists(adc_path):
                 try:
@@ -142,7 +139,7 @@ class FirebaseDBAdapter:
 
 
 class RestDBAdapter:
-    """Pyrebase-like adapter using Firebase Realtime Database REST API with idToken."""
+    """Pyrebase-like adapter using Firebase Realtime Database REST API."""
 
     def __init__(
         self,
@@ -354,3 +351,11 @@ def db_child_by_path(path: str):
     except Exception as e:
         logger.error(f"❌ db_child_by_path failed for path {path}: {e}")
         return None
+
+
+def write_logs(message: str):
+    """Helper for backward compatibility: send log message to configured log channel."""
+    try:
+        send_to_all(message)
+    except Exception as e:
+        logger.error(f"❌ write_logs failed: {e}")
