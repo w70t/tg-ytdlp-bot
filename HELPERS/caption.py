@@ -68,10 +68,9 @@ def truncate_caption(
     post_block_str = '\n'.join(post_block_lines).strip()
 
     tags_block = (tags_text.strip() + '\n') if tags_text and tags_text.strip() else ''
-    # --- Add bot name next to the link ---
-    bot_name = getattr(Config, 'BOT_NAME', None) or 'bot'
-    bot_mention = f' @{bot_name}' if not bot_name.startswith('@') else f' {bot_name}'
-    link_block = get_messages_instance().CAPTION_VIDEO_URL_LINK_MSG.format(url=url, bot_mention=bot_mention)
+    
+    # --- MODIFIED: Removed bot_mention from the link block ---
+    link_block = get_messages_instance().CAPTION_VIDEO_URL_LINK_MSG.format(url=url)
     
     was_truncated = False
     
