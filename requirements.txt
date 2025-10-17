@@ -16,3 +16,7 @@ bgutil-ytdlp-pot-provider
 yt-dlp[default,curl-cffi]
 # Gallery-dl для скачивания картинок
 gallery-dl
+
+# Web framework for health checks
+flask
+werkzeug
