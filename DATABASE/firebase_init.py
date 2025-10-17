@@ -2,7 +2,7 @@ import math
 import time
 import threading
 import os
-import json # Added for JSON parsing
+import json
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -33,17 +33,12 @@ def _get_database_url() -> str:
 
 
 def _init_firebase_admin_if_needed() -> bool:
-    """Initialize firebase_admin with databaseURL from Config.
-
-    Prefers credentials from GOOGLE_APPLICATION_CREDENTIALS or
-    Config.FIREBASE_SERVICE_ACCOUNT (path to service account JSON).
-    """
+    """Initialize firebase_admin with databaseURL from Config."""
     if firebase_admin._apps:
         return True
 
     database_url = _get_database_url()
-
-    cred_obj = None # Initialize cred_obj to None
+    cred_obj = None
 
     # Try to load Firebase credentials from FIREBASE_CREDENTIALS environment variable
     firebase_credentials_json = os.environ.get("FIREBASE_CREDENTIALS")
@@ -56,13 +51,9 @@ def _init_firebase_admin_if_needed() -> bool:
             logger.error(f"❌ Error parsing FIREBASE_CREDENTIALS environment variable: {e}")
             cred_obj = None
 
-
-    # If cred_obj is still None, it means loading from FIREBASE_CREDENTIALS failed or it was not set.
-    # If FIREBASE_CREDENTIALS was not set, log it here before trying other methods.
     if cred_obj is None and not firebase_credentials_json:
         logger.info("ℹ️ FIREBASE_CREDENTIALS environment variable not set.")
 
-    # In this case, we proceed to check other credential sources or fallback.
     if cred_obj is None:
         # 1) Explicit path in config
         service_account_path = getattr(Config, "FIREBASE_SERVICE_ACCOUNT", None)
@@ -77,13 +68,8 @@ def _init_firebase_admin_if_needed() -> bool:
                 except Exception:
                     cred_obj = None
 
-    # If cred_obj is still None, it means loading from FIREBASE_CREDENTIALS failed or it was not set.
-    # In this case, we proceed to check other credential sources or fallback.
     if cred_obj is None:
         logger.warning("ℹ️ firebase_admin credentials not found, will use REST fallback")
-        # Log the error if loading from environment variable failed
-        if 'e' in locals() and isinstance(e, Exception): # Check if an exception 'e' was caught during JSON parsing
-            logger.error(f"❌ Error parsing FIREBASE_CREDENTIALS environment variable: {e}")
         return False
 
     firebase_admin.initialize_app(cred_obj, {"databaseURL": database_url})
@@ -145,7 +131,6 @@ class FirebaseDBAdapter:
         return _SnapshotCompat(value)
 
     def push(self, data: Any):
-        # firebase_admin Reference has push in RTDB; return child key-compatible object
         ref = self._ref().push(data)
         return ref
 
@@ -157,11 +142,7 @@ class FirebaseDBAdapter:
 
 
 class RestDBAdapter:
-    """Pyrebase-like adapter using Firebase Realtime Database REST API with idToken.
-
-    Важно: все дочерние адаптеры (child) разделяют одно общее состояние токенов,
-    один requests.Session и один фоновой поток обновления токена.
-    """
+    """Pyrebase-like adapter using Firebase Realtime Database REST API with idToken."""
 
     def __init__(
         self,
@@ -181,7 +162,6 @@ class RestDBAdapter:
         self._path = path if path.startswith("/") else f"/{path}"
         self._is_child = _is_child
 
-        # Общее (shared) состояние между всеми child-экземплярами
         if _shared is None:
             self._shared = {
                 "lock": threading.RLock(),
@@ -192,12 +172,11 @@ class RestDBAdapter:
         else:
             self._shared = _shared
 
-        # Общая сессия между всеми child-экземплярами
         if _session is None:
             sess = Session()
             sess.headers.update({
                 'User-Agent': 'tg-ytdlp-bot/1.0',
-                'Connection': 'close'  # минимизируем удержание соединений
+                'Connection': 'close'
             })
             adapter = HTTPAdapter(
                 pool_connections=3,
@@ -205,13 +184,12 @@ class RestDBAdapter:
                 max_retries=2,
                 pool_block=False,
             )
-            sess.mount('http://', adapter )
-            sess.mount('https://', adapter )
+            sess.mount('http://', adapter)
+            sess.mount('https://', adapter)
             self._session = sess
         else:
             self._session = _session
 
-        # Запускаем рефрешер токена только один раз (и только у корневого адаптера)
         if _start_refresher and self._shared.get("refresh_token"):
             with self._shared["lock"]:
                 if not self._shared["refresher_started"]:
@@ -220,13 +198,12 @@ class RestDBAdapter:
                     self._shared["refresher_started"] = True
 
     def _token_refresher(self):
-        # Обновляем каждые ~50 минут
         while True:
             time.sleep(3000)
             try:
                 url = f"https://securetoken.googleapis.com/v1/token?key={self._api_key}"
                 with self._shared["lock"]:
-                    refresh_token = self._shared.get("refresh_token" )
+                    refresh_token = self._shared.get("refresh_token")
                 resp = self._session.post(url, data={
                     "grant_type": "refresh_token",
                     "refresh_token": refresh_token,
@@ -254,7 +231,6 @@ class RestDBAdapter:
             if not part:
                 continue
             path = f"{path}/{part}"
-        # ВАЖНО: не запускаем новый рефрешер и переиспользуем shared и session
         return RestDBAdapter(
             self._database_url,
             self._shared.get("id_token"),
@@ -294,9 +270,6 @@ class RestDBAdapter:
         return _SnapshotCompat(r.json())
 
     def close(self):
-        """Закрывает сетевые ресурсы только у корневого адаптера.
-        Дети разделяют сессию и не должны её закрывать.
-        """
         if self._is_child:
             return
         try:
@@ -311,7 +284,6 @@ class RestDBAdapter:
             logger.error(f"RestDBAdapter failed to close session: {e}")
 
 
-
 class DB:
     def __init__(self, user_or_chat_id: int):
         self.user_or_chat_id = user_or_chat_id
@@ -321,7 +293,6 @@ class DB:
         if not _init_firebase_admin_if_needed():
             self.use_rest_api = True
             logger.warning("Firebase Admin SDK not initialized, falling back to REST API")
-            # Проверяем, есть ли токен и ключ API для REST
             if not all([Config.FIREBASE_ID_TOKEN, Config.FIREBASE_API_KEY]):
                 messages = get_messages_instance()
                 raise RuntimeError(messages.DB_REST_API_CREDENTIALS_MISSING_MSG)
@@ -331,7 +302,22 @@ class DB:
                 Config.FIREBASE_REFRESH_TOKEN,
                 Config.FIREBASE_API_KEY,
             )
-            # في نهاية الملف، بعد تعريف class DB
+        else:
+            self.db = FirebaseDBAdapter()
+
+    def child(self, *path: str):
+        return self.db.child(*path)
+
+    def get_user_or_chat_data(self):
+        return self.db.child(self.user_or_chat_id).get()
+
+    def set_user_or_chat_data(self, data):
+        return self.db.child(self.user_or_chat_id).set(data)
+
+    def close(self):
+        if hasattr(self.db, 'close'):
+            self.db.close()
+
 
 # Initialize global db instance for backward compatibility
 try:
@@ -339,7 +325,6 @@ try:
         db = FirebaseDBAdapter()
         logger.info("✅ Global 'db' instance initialized with Firebase Admin SDK")
     else:
-        # Fallback to REST API
         if not all([
             hasattr(Config, 'FIREBASE_ID_TOKEN') and Config.FIREBASE_ID_TOKEN,
             hasattr(Config, 'FIREBASE_API_KEY') and Config.FIREBASE_API_KEY
@@ -357,19 +342,3 @@ try:
 except Exception as e:
     logger.error(f"❌ Failed to initialize global 'db' instance: {e}")
     db = None
-
-        else:
-            self.db = FirebaseDBAdapter()
-
-    def child(self, *path: str):
-        return self.db.child(*path)
-
-    def get_user_or_chat_data(self):
-        return self.db.child(self.user_or_chat_id).get()
-
-    def set_user_or_chat_data(self, data):
-        return self.db.child(self.user_or_chat_id).set(data)
-
-    def close(self):
-        if hasattr(self.db, 'close'):
-            self.db.close()
