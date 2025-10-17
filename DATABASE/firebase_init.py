@@ -342,3 +342,15 @@ try:
 except Exception as e:
     logger.error(f"❌ Failed to initialize global 'db' instance: {e}")
     db = None
+
+
+def db_child_by_path(path: str):
+    """Helper for backward compatibility: Returns a child adapter at the given path."""
+    try:
+        if db is None:
+            logger.error("❌ db_child_by_path called but global 'db' is None")
+            return None
+        return db.child(path)
+    except Exception as e:
+        logger.error(f"❌ db_child_by_path failed for path {path}: {e}")
+        return None
