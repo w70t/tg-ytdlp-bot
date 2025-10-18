@@ -1677,22 +1677,15 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 logger.info(f"Found video files with fallback search: {files}")
             
             if not files:
-    send_error_to_user(message, get_messages_instance().SKIPPING_UNSUPPORTED_FILE_TYPE_MSG.format(index=idx + video_start_with))
-    continue
+                send_error_to_user(message, get_messages_instance().SKIPPING_UNSUPPORTED_FILE_TYPE_MSG.format(index=idx + video_start_with))
+                continue
 
-downloaded_file = files[0]
-logger.info(f"Selected downloaded file: {downloaded_file}")
-
-# ==================== التعديل هنا ====================
-# قم بإنشاء رسالة سجل مفصلة كمتغير واحد
-log_message = f"User: {message.from_user.id}, URL: {url}, Downloaded File: {downloaded_file}"
-# الآن قم باستدعاء الدالة بالمتغير الواحد الصحيح
-write_logs(log_message)
-# ====================================================
-
-# Save original filename for subtitle search
-original_video_filename = downloaded_file
-original_video_path = os.path.join(dir_path, original_video_filename)
+                    downloaded_file = files[0]
+                    logger.info(f"Selected downloaded file: {downloaded_file}")
+                    log_message = f"User: {message.from_user.id}, URL: {url}, Downloaded File: {downloaded_file}"
+                    write_logs(log_message)
+                    original_video_filename = downloaded_file
+                    original_video_path = os.path.join(dir_path, original_video_filename)
 
             if rename_name == video_title:
                 caption_name = original_video_title  # Original title for caption
