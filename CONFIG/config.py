@@ -15,13 +15,18 @@ class Config(object):
     # Bot Configuration
     BOT_NAME = os.environ.get("BOT_NAME", "your_bot_name")
     BOT_NAME_FOR_USERS = os.environ.get("BOT_NAME_FOR_USERS", "tg-ytdlp-bot")
+    
+    # ==================== أضف السطر التالي هنا ====================
+    BOT_USERNAME = os.environ.get("BOT_USERNAME", "@YourBotUsername") # استبدل هذا باسم مستخدم بوتك
+    # =============================================================
+
     ADMIN = list(map(int, os.environ.get("ADMIN", "").split(","))) if os.environ.get("ADMIN") else []
     API_ID = int(os.environ.get("API_ID", 0))
     API_HASH = os.environ.get("API_HASH", "your_api_hash_here")
     BOT_TOKEN = os.environ.get("BOT_TOKEN", "1234567890:ABCdefGHIjklMNOpqrsTUVwxyz")
     STAR_RECEIVER = int(os.environ.get("STAR_RECEIVER", 7360853))
     ALLOWED_GROUP = list(map(int, os.environ.get("ALLOWED_GROUP", "").split(","))) if os.environ.get("ALLOWED_GROUP") else []
-    MINIAPP_URL = os.environ.get("MINIAPP_URL", "https://t.me/your_bot/?startapp" )
+    MINIAPP_URL = os.environ.get("MINIAPP_URL", "https://t.me/your_bot/?startapp"  )
 
     # Channel Configuration (Multiple Log Channels)
     LOGS_ID = int(os.environ.get("LOGS_ID", 0))
@@ -31,15 +36,15 @@ class Config(object):
     LOGS_PAID_ID = int(os.environ.get("LOGS_PAID_ID", 0))
     LOG_EXCEPTION = int(os.environ.get("LOG_EXCEPTION", 0))
     SUBSCRIBE_CHANNEL = int(os.environ.get("SUBSCRIBE_CHANNEL", 0))
-    SUBSCRIBE_CHANNEL_URL = os.environ.get("SUBSCRIBE_CHANNEL_URL", "https://t.me/your_channel" )
+    SUBSCRIBE_CHANNEL_URL = os.environ.get("SUBSCRIBE_CHANNEL_URL", "https://t.me/your_channel"  )
 
     # Cookie Configuration
-    COOKIE_URL = os.environ.get("COOKIE_URL", "https://your-domain.com/cookies/cookie.txt" )
+    COOKIE_URL = os.environ.get("COOKIE_URL", "https://your-domain.com/cookies/cookie.txt"  )
 
     # YouTube Cookie URLs (Multiple Sources)
-    YOUTUBE_COOKIE_URL = os.environ.get("YOUTUBE_COOKIE_URL", "https://your-domain.com/cookies/youtube/cookie1.txt" )
-    YOUTUBE_COOKIE_URL_1 = os.environ.get("YOUTUBE_COOKIE_URL_1", "https://your-domain.com/cookies/youtube/cookie2.txt" )
-    YOUTUBE_COOKIE_URL_2 = os.environ.get("YOUTUBE_COOKIE_URL_2", "https://your-domain.com/cookies/youtube/cookie3.txt" )
+    YOUTUBE_COOKIE_URL = os.environ.get("YOUTUBE_COOKIE_URL", "https://your-domain.com/cookies/youtube/cookie1.txt"  )
+    YOUTUBE_COOKIE_URL_1 = os.environ.get("YOUTUBE_COOKIE_URL_1", "https://your-domain.com/cookies/youtube/cookie2.txt"  )
+    YOUTUBE_COOKIE_URL_2 = os.environ.get("YOUTUBE_COOKIE_URL_2", "https://your-domain.com/cookies/youtube/cookie3.txt"  )
     YOUTUBE_COOKIE_URL_3 = os.environ.get("YOUTUBE_COOKIE_URL_3")
     YOUTUBE_COOKIE_URL_4 = os.environ.get("YOUTUBE_COOKIE_URL_4")
     YOUTUBE_COOKIE_URL_5 = os.environ.get("YOUTUBE_COOKIE_URL_5")
@@ -50,7 +55,7 @@ class Config(object):
     YOUTUBE_COOKIE_URL_10 = os.environ.get("YOUTUBE_COOKIE_URL_10")
     
     YOUTUBE_COOKIE_ORDER = os.environ.get("YOUTUBE_COOKIE_ORDER", "round_robin") # random, round_robin
-    YOUTUBE_COOKIE_TEST_URL = os.environ.get("YOUTUBE_COOKIE_TEST_URL", "https://youtu.be/XqZsoesa55w" )
+    YOUTUBE_COOKIE_TEST_URL = os.environ.get("YOUTUBE_COOKIE_TEST_URL", "https://youtu.be/XqZsoesa55w"  )
     
     INSTAGRAM_COOKIE_URL = os.environ.get("INSTAGRAM_COOKIE_URL")
     TIKTOK_COOKIE_URL = os.environ.get("TIKTOK_COOKIE_URL")
@@ -75,7 +80,7 @@ class Config(object):
         "storageBucket": os.environ.get("FIREBASE_STORAGE_BUCKET", "your-project.appspot.com"),
         "messagingSenderId": os.environ.get("FIREBASE_MESSAGING_SENDER_ID", "123456789"),
         "appId": os.environ.get("FIREBASE_APP_ID", "1:123456789:web:abcdef123456"),
-        "databaseURL": os.environ.get("FIREBASE_DATABASE_URL", "https://your-project-default-rtdb.firebaseio.com" )
+        "databaseURL": os.environ.get("FIREBASE_DATABASE_URL", "https://your-project-default-rtdb.firebaseio.com"  )
     }
     
     BOT_DB_PATH = f"bot/{BOT_NAME_FOR_USERS}/"
@@ -84,7 +89,7 @@ class Config(object):
     IMAGE_CACHE_DB_PATH = "bot/video_cache/images"
 
     # Proxy configuration
-    PROXY_TYPE = os.environ.get("PROXY_TYPE", "http" )
+    PROXY_TYPE = os.environ.get("PROXY_TYPE", "http"  )
     PROXY_IP = os.environ.get("PROXY_IP", "X.X.X.X")
     PROXY_PORT = int(os.environ.get("PROXY_PORT", 3128))
     PROXY_USER = os.environ.get("PROXY_USER", "XXXXXXXX")
@@ -100,7 +105,7 @@ class Config(object):
 
     # PO Token Provider configuration
     YOUTUBE_POT_ENABLED = os.environ.get("YOUTUBE_POT_ENABLED", "True").lower() == "true"
-    YOUTUBE_POT_BASE_URL = os.environ.get("YOUTUBE_POT_BASE_URL", "http://127.0.0.1:4416" )
+    YOUTUBE_POT_BASE_URL = os.environ.get("YOUTUBE_POT_BASE_URL", "http://127.0.0.1:4416"  )
     YOUTUBE_POT_DISABLE_INNERTUBE = os.environ.get("YOUTUBE_POT_DISABLE_INNERTUBE", "False").lower() == "true"
     ###########################################################
     #        STOP FILL IN YOUR CUSTOM VALUES HERE
