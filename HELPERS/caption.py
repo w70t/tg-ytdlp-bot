@@ -1,7 +1,7 @@
 # Caption Editor for Videos
 import re
 from typing import Tuple
-from CONFIG.config import Config
+from CONFIG.config import Config, BOT_USERNAME  # <-- تم إضافة BOT_USERNAME هنا
 from CONFIG.messages import Messages, get_messages_instance
 from HELPERS.app_instance import get_app
 from HELPERS.logger import send_to_logger
@@ -69,8 +69,13 @@ def truncate_caption(
 
     tags_block = (tags_text.strip() + '\n') if tags_text and tags_text.strip() else ''
     
-    # --- MODIFIED: Removed bot_mention from the link block ---
-    link_block = get_messages_instance().CAPTION_VIDEO_URL_LINK_MSG.format(url=url)
+    # ==================== التصحيح هنا ====================
+    # تم تزويد الدالة الآن بمتغير bot_mention المطلوب
+    link_block = get_messages_instance().CAPTION_VIDEO_URL_LINK_MSG.format(
+        url=url,
+        bot_mention=BOT_USERNAME
+    )
+    # ====================================================
     
     was_truncated = False
     
