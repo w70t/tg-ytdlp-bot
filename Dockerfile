@@ -1,7 +1,9 @@
-FROM python:3.10-slim-buster AS builder
+# استخدم صورة أساسية أحدث (Bullseye بدلاً من Buster)
+FROM python:3.10-slim-bullseye AS builder
 
 WORKDIR /app
 
+# هذا الأمر سيعمل الآن لأن مستودعات Bullseye نشطة
 RUN apt-get update && \
     apt-get install -y --no-install-recommends ffmpeg mediainfo && \
     rm -rf /var/lib/apt/lists/*
@@ -9,7 +11,8 @@ RUN apt-get update && \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-FROM python:3.10-slim-buster
+# استخدم نفس الصورة الأساسية في مرحلة الإنتاج
+FROM python:3.10-slim-bullseye
 
 WORKDIR /app
 
