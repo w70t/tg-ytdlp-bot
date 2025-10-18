@@ -1679,8 +1679,7 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
             if not files:
                 send_error_to_user(message, get_messages_instance().SKIPPING_UNSUPPORTED_FILE_TYPE_MSG.format(index=idx + video_start_with))
                 continue
-
-                    downloaded_file = files[0]
+                downloaded_file = files[0]
                     logger.info(f"Selected downloaded file: {downloaded_file}")
                     log_message = f"User: {message.from_user.id}, URL: {url}, Downloaded File: {downloaded_file}"
                     write_logs(log_message)
