@@ -1675,8 +1675,8 @@ def down_and_up(app, message, url, playlist_name, video_count, video_start_with,
                 files = [fname for fname in allfiles if fname.endswith(fallback_extensions)]
                 files.sort()
                 logger.info(f"Found video files with fallback search: {files}")
-            
-                        if not files:
+                
+                if not files:
                 send_error_to_user(message, get_messages_instance().SKIPPING_UNSUPPORTED_FILE_TYPE_MSG.format(index=idx + video_start_with))
                 continue
 
