@@ -1,1 +1,1 @@
-worker: python3 magic.py
+web: python3 magic.py
