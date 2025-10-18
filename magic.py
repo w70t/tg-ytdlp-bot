@@ -321,6 +321,8 @@ signal.signal(signal.SIGTERM, signal_handler)
 ###########################################################
 import flask
 from threading import Thread
+import time
+import os
 
 # Create Flask app with improved health check endpoints
 flask_app = flask.Flask(__name__)
@@ -398,8 +400,8 @@ def run_flask_app():
     host = '0.0.0.0'
     
     print(f"Starting Flask app on {host}:{port}")
-    print(f"Health check URL: http://{host}:{port}/health")
-    print(f"Ping URL: http://{host}:{port}/ping")
+    print(f"Health check URL: http://{host}:{port}/health" )
+    print(f"Ping URL: http://{host}:{port}/ping" )
     
     # Use threaded=True for better performance
     flask_app.run(host=host, port=port, threaded=True, debug=False)
