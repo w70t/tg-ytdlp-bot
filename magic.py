@@ -265,41 +265,32 @@ def _vid_handler(app, message):
             get_messages_instance().MAGIC_VID_HELP_ALSO_SEE_MSG
         )
         safe_send_message(message.chat.id, help_text, parse_mode=enums.ParseMode.HTML, reply_markup=kb, message=message)
-# Register /vid in private and allowed groups
-app.on_message(filters.command("vid") & filters.private)(_vid_handler)
+
+app.on_message(filters.private & filters.command("vid"))(_vid_handler)
 if _allowed_groups:
     app.on_message(filters.group & filters.command("vid"))(_wrap_group(lambda a, m: _vid_handler(a, m) if _is_allowed_group(m) else None))
-# Help close handler for /vid
-@app.on_callback_query(filters.regex(r"^vid_help\|"))
-def vid_help_callback(app, callback_query):
-    data = callback_query.data.split("|")[1]
-    if data == "close":
-        try:
-            callback_query.message.delete()
-        except Exception:
-            try:
-                callback_query.edit_message_reply_markup(reply_markup=None)
-            except Exception:
-                pass
-        try:
-            callback_query.answer(get_messages_instance().MAGIC_HELP_CLOSED_MSG)
-        except Exception:
-            pass
-        return
-###########################################################
-#        APP STARTS
-###########################################################
-# ###############################################################################################
-# Global starting point list (do not modify)
-starting_point = []
-# ###############################################################################################
-# Run the automatic loading of the Firebase cache
-start_auto_cache_reloader()
-def cleanup_on_exit():
-    """Cleanup function to close Firebase connections and logger on exit"""
+
+@app.on_callback_query(filters.regex(r"^vid_help\|close$"))
+def _close_vid_help(app, callback_query):
     try:
-        from DATABASE.cache_db import close_all_firebase_connections
-        close_all_firebase_connections()
+        callback_query.message.delete()
+    except Exception:
+        pass
+
+###########################################################
+#        CLEANUP ON EXIT
+###########################################################
+def cleanup_on_exit():
+    """Cleanup function to close all connections and handlers"""
+    try:
+        print(get_messages_instance().MAGIC_CLEANUP_STARTED_MSG)
+        
+        # Close all Firebase connections
+        try:
+            from DATABASE.cache_db import close_all_firebase_connections
+            close_all_firebase_connections()
+        except Exception as e:
+            print(get_messages_instance().MAGIC_ERROR_CLOSING_FIREBASE_MSG.format(error=e))
         
         # Close logger handlers
         try:
@@ -311,33 +302,119 @@ def cleanup_on_exit():
         print(get_messages_instance().MAGIC_CLEANUP_COMPLETED_MSG)
     except Exception as e:
         print(get_messages_instance().MAGIC_ERROR_DURING_CLEANUP_MSG.format(error=e))
+
 # Register cleanup function
 atexit.register(cleanup_on_exit)
+
 # Register signal handlers for graceful shutdown
 def signal_handler(sig, frame):
     """Handle shutdown signals gracefully"""
     print(get_messages_instance().MAGIC_SIGNAL_RECEIVED_MSG.format(signal=sig))
     cleanup_on_exit()
     sys.exit(0)
+
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
+###########################################################
+#        FLASK APP - IMPROVED FOR KOYEB 24/7 UPTIME
+###########################################################
 import flask
 from threading import Thread
 
-# Create a simple Flask app for Koyeb health checks
+# Create Flask app with improved health check endpoints
 flask_app = flask.Flask(__name__)
+
+# Variables to track bot status
+start_time = time.time()
+last_activity = time.time()
+ping_count = 0
 
 @flask_app.route('/')
 def hello():
+    """Main page - confirms bot is running"""
+    global last_activity
+    last_activity = time.time()
     return 'Bot is running!'
 
-def run_flask_app():
-    port = int(os.environ.get("PORT", 8000))
-    flask_app.run(host='0.0.0.0', port=port)
+@flask_app.route('/health')
+def health():
+    """Detailed health check endpoint for monitoring"""
+    global last_activity
+    uptime = time.time() - start_time
+    return flask.jsonify({
+        'status': 'healthy',
+        'bot_name': 'tg-ytdlp-bot',
+        'uptime_seconds': int(uptime),
+        'uptime_formatted': f"{int(uptime // 3600)}h {int((uptime % 3600) // 60)}m",
+        'last_activity': last_activity,
+        'last_activity_ago': int(time.time() - last_activity),
+        'bot_running': True,
+        'ping_count': ping_count,
+        'timestamp': time.time()
+    })
 
-# Start the Flask app in a separate thread
-flask_thread = Thread(target=run_flask_app)
+@flask_app.route('/ping')
+def ping():
+    """Simple endpoint for keep-alive from cron-job.org"""
+    global last_activity, ping_count
+    last_activity = time.time()
+    ping_count += 1
+    return flask.jsonify({
+        'status': 'pong',
+        'timestamp': time.time(),
+        'ping_count': ping_count
+    })
+
+@flask_app.route('/status')
+def status():
+    """Detailed bot status information"""
+    uptime = time.time() - start_time
+    return flask.jsonify({
+        'bot_name': 'tg-ytdlp-bot',
+        'version': '4.0.0',
+        'status': 'active',
+        'uptime_seconds': int(uptime),
+        'start_time': start_time,
+        'last_activity': last_activity,
+        'ping_count': ping_count,
+        'timestamp': time.time()
+    })
+
+@flask_app.route('/wake')
+def wake():
+    """Endpoint to wake up the bot (same as ping)"""
+    global last_activity
+    last_activity = time.time()
+    return flask.jsonify({
+        'status': 'awake',
+        'message': 'Bot is awake and running',
+        'timestamp': time.time()
+    })
+
+def run_flask_app():
+    """Run Flask app in a separate thread"""
+    port = int(os.environ.get("PORT", 8080))
+    host = '0.0.0.0'
+    
+    print(f"Starting Flask app on {host}:{port}")
+    print(f"Health check URL: http://{host}:{port}/health")
+    print(f"Ping URL: http://{host}:{port}/ping")
+    
+    # Use threaded=True for better performance
+    flask_app.run(host=host, port=port, threaded=True, debug=False)
+
+# Start Flask in a separate thread
+print("Initializing Flask health check server...")
+flask_thread = Thread(target=run_flask_app, daemon=True)
 flask_thread.start()
 
+# Wait a bit to ensure Flask starts
+time.sleep(2)
+print("Flask server started successfully!")
+
+###########################################################
+#        START BOT
+###########################################################
 app.run()
+
