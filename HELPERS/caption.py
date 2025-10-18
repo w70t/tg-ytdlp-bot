@@ -1,7 +1,8 @@
 # Caption Editor for Videos
 import re
 from typing import Tuple
-from CONFIG.config import Config, BOT_USERNAME  # <-- تم إضافة BOT_USERNAME هنا
+# --- التصحيح هنا: نستورد Config فقط ---
+from CONFIG.config import Config
 from CONFIG.messages import Messages, get_messages_instance
 from HELPERS.app_instance import get_app
 from HELPERS.logger import send_to_logger
@@ -44,20 +45,18 @@ def truncate_caption(
     description: str,
     url: str,
     tags_text: str = '',
-    max_length: int = 1000  # Reduced from 1024 to be safe with encoding issues
+    max_length: int = 1000
 ) -> Tuple[str, str, str, str, str, bool]:
     """
     Returns: (title_html, pre_block, blockquote_content, tags_block, link_block, was_truncated)
     """
     title_html = f'<b>{title}</b>' if title else ''
-    # Pattern for finding timestamps at the beginning of a line (00:00, 0:00:00, 0.00, etc.)
     timestamp_pattern = r'^\s*(\d{1,2}:\d{2}(?::\d{2})?|\d{1,2}\.\d{2}(?:\.\d{2})?)\s+.*'
 
     lines = description.split('\n') if description else []
     pre_block_lines = []
     post_block_lines = []
 
-    # Split lines into timestamps and main text
     for line in lines:
         if re.match(timestamp_pattern, line):
             pre_block_lines.append(line)
@@ -69,30 +68,24 @@ def truncate_caption(
 
     tags_block = (tags_text.strip() + '\n') if tags_text and tags_text.strip() else ''
     
-    # ==================== التصحيح هنا ====================
-    # تم تزويد الدالة الآن بمتغير bot_mention المطلوب
+    # --- التصحيح هنا: نصل إلى المتغير عبر الكلاس Config ---
     link_block = get_messages_instance().CAPTION_VIDEO_URL_LINK_MSG.format(
         url=url,
-        bot_mention=BOT_USERNAME
+        bot_mention=Config.BOT_USERNAME
     )
-    # ====================================================
     
     was_truncated = False
     
-    # Calculate constant overhead more accurately
     overhead = len(tags_block) + len(link_block)
     if title_html:
-        overhead += len(title_html) + 2 # for '\n\n'
+        overhead += len(title_html) + 2
     if pre_block_str:
-        overhead += len(pre_block_str) + 1 # for '\n'
+        overhead += len(pre_block_str) + 1
     
-    # Calculate limit for blockquote (taking into account <blockquote> tags)
-    blockquote_overhead = len('<blockquote expandable></blockquote>') + 1 # for '\n'
+    blockquote_overhead = len('<blockquote expandable></blockquote>') + 1
     blockquote_limit = max_length - overhead - blockquote_overhead
     
-    # Ensure we have some space for content
     if blockquote_limit <= 0:
-        # If no space for blockquote, truncate everything except essential parts
         if title_html:
             title_html = title_html[:max_length-10] + '...'
         pre_block_str = ''
@@ -104,21 +97,18 @@ def truncate_caption(
             blockquote_content = blockquote_content[:blockquote_limit - 4] + '...'
             was_truncated = True
 
-    # Final check and possible truncation of pre_block
     current_length = overhead + len(blockquote_content) + blockquote_overhead
     if current_length > max_length:
-        # Calculate how much space we can give to pre_block
         pre_block_limit = max_length - (overhead - len(pre_block_str) - 1) - len(blockquote_content) - blockquote_overhead
         if pre_block_limit > 0 and pre_block_limit < len(pre_block_str):
             pre_block_str = pre_block_str[:pre_block_limit-4] + '...'
             was_truncated = True
-        else: # if even with truncated pre_block it does not fit, truncate everything
+        else:
              pre_block_str = ''
 
     if pre_block_str:
         pre_block_str += '\n'
 
-    # Assembly caption
     cap = ''
     if title_html:
         cap += title_html + '\n\n'
@@ -129,9 +119,7 @@ def truncate_caption(
         cap += tags_block
     cap += link_block
     
-    # Final safety check - ensure we never exceed max_length
     if len(cap) > max_length:
-        # Emergency truncation - keep only essential parts
         essential_parts = []
         if title_html:
             essential_parts.append(title_html)
@@ -142,10 +130,8 @@ def truncate_caption(
         
         cap = '\n\n'.join(essential_parts)
         if len(cap) > max_length:
-            # More aggressive truncation - remove HTML tags for calculation
             plain_text = re.sub(r'<[^>]+>', '', cap)
             if len(plain_text) > max_length:
-                # Truncate plain text and rebuild HTML
                 truncated_text = plain_text[:max_length-10] + '...'
                 cap = truncated_text
             else:
