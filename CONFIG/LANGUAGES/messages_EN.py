@@ -4,13 +4,25 @@ class Messages(object):
     #######################################################
     # Messages and errors
     #######################################################
+
+    # ==================== هذه هي الرسالة التي تم تعديلها ====================
+    # لقد غيرت النص وحذفت اليوزرات (عبر حذف متغير {credits})
+    START_MSG = """
+    Hello, {user_name}! 👋
+
+    This bot can download videos from any link you send.
+    
+    For more information, press /help.
+    """
+    # =====================================================================
+
     CREDITS_MSG = "<blockquote><i>Managed by</i> @iilililiiillliiliililliilliliiil\n🇮🇹 @tgytdlp_it_bot\n🇦🇪 @tgytdlp_uae_bot\n🇬🇧 @tgytdlp_uk_bot\n🇫🇷 @tgytdlp_fr_bot</blockquote>"
     TO_USE_MSG = "<i>To use this bot you need to subscribe to @tg_ytdlp Telegram channel.</i>\nAfter you join the channel, <b>resend your video link again and bot will download it for you</b> ❤️  "
 
     ERROR1 = "Did not found a url link. Please enter a url with <b>https://</b> or <b>http://</b>"
 
     PLAYLIST_HELP_MSG = """
-<blockquote expandable>📋 <b>Playlists (yt-dlp)</b>
+<blockquote expandable>📋 <b>Playlists (yt-dlp )</b>
 
 To download playlists send its URL with <code>*start*end</code> ranges in the end. For example: <code>URL*1*5</code>.
 Or you can use <code>/vid FROM-TO URL</code>. For example: <code>/vid 3-7 URL</code>. Also works for <code>/audio</code> command.
@@ -19,10 +31,10 @@ Or you can use <code>/vid FROM-TO URL</code>. For example: <code>/vid 3-7 URL</c
 
 🟥 <b>Video range from YouTube playlist:</b> (need 🍪)
 <code>https://youtu.be/playlist?list=PL...*1*5</code>
-(downloads videos from 1 to 5 inclusive)
+(downloads videos from 1 to 5 inclusive )
 🟥 <b>Single video from YouTube playlist:</b> (need 🍪)
 <code>https://youtu.be/playlist?list=PL...*3*3</code>
-(downloads only the 3rd video)
+(downloads only the 3rd video )
 
 ⬛️ <b>TikTok profile:</b> (need your 🍪)
 <code>https://www.tiktok.com/@USERNAME*1*10</code>
