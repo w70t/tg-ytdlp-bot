@@ -17,7 +17,7 @@ class Config(object):
     BOT_NAME_FOR_USERS = os.environ.get("BOT_NAME_FOR_USERS", "tg-ytdlp-bot")
     
     # ==================== أضف السطر التالي هنا ====================
-    BOT_USERNAME = os.environ.get("BOT_USERNAME", "@YourBotUsername") # استبدل هذا باسم مستخدم بوتك
+    BOT_USERNAME = os.environ.get("BOT_USERNAME", "@iraq_7kmmy") # استبدل هذا باسم مستخدم بوتك
     # =============================================================
 
     ADMIN = list(map(int, os.environ.get("ADMIN", "").split(","))) if os.environ.get("ADMIN") else []
